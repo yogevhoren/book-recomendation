@@ -1,8 +1,9 @@
 from __future__ import annotations
 import logging, re
 from .patterns import DISCLAIMER_TRIGGER, DISCLAIMER_ENDMARK
-from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
 from .constants import ENGLISH_STOPWORDS_STRICT
+import hashlib
+import unicodedata
 
 log = logging.getLogger(__name__)
 
@@ -85,3 +86,15 @@ def flag_suspected_non_english(
         "score": score,
         "tokens": len(tokens),
     }
+
+def _normalize_for_hash(text: str) -> str:
+    if not isinstance(text, str):
+        return ""
+    t = unicodedata.normalize("NFKC", text)
+    t = re.sub(r"\s+", " ", t).strip()
+    return t
+
+def stable_text_hash(text: str) -> str:
+    norm = _normalize_for_hash(text)
+    h = hashlib.blake2b(norm.encode("utf-8"), digest_size=6)
+    return h.hexdigest()

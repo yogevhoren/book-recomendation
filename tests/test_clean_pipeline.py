@@ -176,3 +176,23 @@ def test_clean_non_english_flag():
     assert flags[2] is True, "Spanish long (Latin but non-English) should be flagged via low EN stopwords"
     assert flags[4] is True, "Cyrillic short snippet should be flagged"
     assert flags[5] is False, "Short English text should NOT be flagged"
+
+def test_cleaning_adds_desc_group_id_for_duplicates():
+    df_in = pd.DataFrame({
+        "book_id": [1, 2, 3],
+        "title": ["T1", "T2", "T3"],
+        "authors": ["A", "B", "C"],
+        "original_publication_year": [2000, 2001, 2002],
+        "language_code": ["en", "en", "en"],
+        "average_rating": [4.0, 4.0, 4.0],
+        "image_url": ["u1", "u2", "u3"],
+        "description": ["Same text", "Same text", "Different text"]
+    })
+
+    out = clean_books_dataset(df_in, drop_language_col=True)
+
+    assert "desc_hash" in out.columns, "desc_hash column missing"
+    dup_group_ids = out.loc[out["description"] == "Same text"]["desc_hash"].unique()
+    assert len(dup_group_ids) == 1, "Duplicates should share the same desc_hash"
+    assert out["desc_hash"].nunique() == len(set(out["description"])), \
+        "Each unique description should have a unique hash"

@@ -3,6 +3,7 @@ import logging
 import pandas as pd
 from .text import strip_ws, standardize_typography, trim_disclaimer_prefix_if_present, flag_suspected_non_english
 from .dedupe import author_list, consolidate_by_title_author_overlap
+from .text import stable_text_hash
 
 log = logging.getLogger(__name__)
 
@@ -68,6 +69,15 @@ def clean_books_dataset(
     else:
         log.info("No suspected non-English descriptions flagged.")
 
+    df["desc_hash"] = df["description"].map(stable_text_hash)
+    grp_sizes = df.groupby("desc_hash", dropna=False)["book_id"].transform("size")
+    df["desc_group_size"] = grp_sizes.astype("int64")
+    df["desc_is_shared"] = (df["desc_group_size"] > 1)
+    log.info(
+        "Description grouping added: shared groups=%d (of %d rows).",
+        int((df["desc_is_shared"]).sum()),
+        len(df)
+    )
 
     log.info(f"Cleaning complete. Output rows={len(df):,}. Columns={list(df.columns)}.")
     return df.reset_index(drop=True)
