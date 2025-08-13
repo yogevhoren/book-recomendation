@@ -25,7 +25,6 @@ DTYPES = {
 }
 
 def load_books_csv(path: str | Path, nrows: Optional[int] = None) -> pd.DataFrame:
-    """Read-only CSV loader. Validates schema. No cleaning here."""
     p = Path(path)
     if not p.exists():
         raise FileNotFoundError(f"CSV not found at {p}")
