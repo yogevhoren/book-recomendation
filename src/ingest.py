@@ -17,7 +17,8 @@ DTYPES = {
     "book_id": "int64",
     "title": "string",
     "authors": "string",
-    "original_publication_year": "float64",  # allow NaN
+    "original_publication_year": "float64", 
+
     "language_code": "string",
     "average_rating": "float64",
     "image_url": "string",

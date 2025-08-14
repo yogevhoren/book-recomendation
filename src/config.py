@@ -5,7 +5,6 @@ import numpy as np
 import torch 
 
 
-# ---- Reproducibility ----
 SEED = 42
 
 def set_seed(seed: int = SEED) -> None:
@@ -16,12 +15,14 @@ def set_seed(seed: int = SEED) -> None:
     if torch.cuda.is_available():           
         torch.cuda.manual_seed_all(seed)
 
-# ---- Visual backbones ----
+
 IMG_H, IMG_W = 518, 518
 IMAGENET_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_STD  = (0.229, 0.224, 0.225)
+def get_img_size() -> tuple[int, int]:
+    return IMG_H, IMG_W
 
-# ---- Paths (dict-based) ----
+
 def get_paths(root: Path | None = None, raw_csv: Path | None = None) -> dict[str, Path]:
     root = root or Path(os.getenv("PROJECT_ROOT", Path.cwd()))
     paths = {

@@ -21,6 +21,4 @@ def test_ingest_loads_and_has_required_cols(caplog):
     missing = required - set(df.columns)
     assert not df.empty
     assert not missing, f"Missing cols: {missing}"
-
-    # sanity: emitted a friendly info line
     assert any("Loaded" in r.message for r in caplog.records)
