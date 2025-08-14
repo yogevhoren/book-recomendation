@@ -22,6 +22,7 @@ IMAGENET_STD  = (0.229, 0.224, 0.225)
 def get_img_size() -> tuple[int, int]:
     return IMG_H, IMG_W
 
+
 def get_paths(root: Path | None = None, raw_csv: Path | None = None) -> dict[str, Path]:
     root = root or Path(os.getenv("PROJECT_ROOT", Path.cwd()))
     paths = {
