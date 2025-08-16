@@ -208,9 +208,7 @@ __marimo__/
 
 
 # Data directories
-=======
 __pycache__/
-
 .ipynb_checkpoints/
 .DS_Store
 
