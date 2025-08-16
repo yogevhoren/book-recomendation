@@ -20,6 +20,7 @@ def _l2_normalize_rows(x: np.ndarray, eps: float = 1e-12) -> np.ndarray:
     return (x / norms).astype(np.float32)
 
 def _df_hash_for_semantic(df: pd.DataFrame) -> str:
+    log.info("Computing DataFrame hash for semantic features")
     need = ["book_id", "title", "description", "desc_suspected_non_english"]
     for c in need:
         if c not in df.columns:
@@ -75,6 +76,7 @@ class SemanticArtifacts:
             json.dump(man, f, ensure_ascii=False, indent=2)
 
 def build_semantic_corpus(df: pd.DataFrame) -> List[str]:
+    log.info("Building semantic corpus from DataFrame with %d rows", len(df))
     need = ["title", "description"]
     for c in need:
         if c not in df.columns:
@@ -93,12 +95,13 @@ def _get_encoder(model_name: str, device: str | None):
 def embed_bge_m3(
     texts: Sequence[str],
     *,
-    model_name: str = "BAAI/bge-m3",
-    batch_size: int = 64,
+    model_name: str = "BAAI/bge-small-en-v1.5",
+    batch_size: int = 32,
     device: str | None = None,
     normalize: bool = True,
     encoder_factory: Callable[[str, str | None], object] = _get_encoder,
 ) -> np.ndarray:
+    log.info("Embedding %d texts with model %s", len(texts), model_name)
     if not isinstance(texts, (list, tuple)):
         texts = list(texts)
     if len(texts) == 0:
@@ -120,15 +123,16 @@ def embed_bge_m3(
 def fit_semantic(
     df: pd.DataFrame,
     *,
-    run_tag: str = "bge-m3",
+    run_tag: str = "BAAI/bge-small-en-v1.5",
     artifacts_root: str | Path = "artifacts/semantic",
     force_recompute: bool = False,
-    model_name: str = "BAAI/bge-m3",
-    batch_size: int = 64,
+    model_name: str = "BAAI/bge-small-en-v1.5",
+    batch_size: int = 32,
     device: str | None = None,
     normalize: bool = True,
     encoder_factory: Callable[[str, str | None], object] = _get_encoder,
 ) -> np.ndarray:
+    log.info("Fitting semantic embeddings with run_tag=%s", run_tag)
     need = ["book_id", "title", "description", "desc_suspected_non_english"]
     for c in need:
         if c not in df.columns:
@@ -137,8 +141,9 @@ def fit_semantic(
     outdir = Path(artifacts_root) / run_tag
     arts = SemanticArtifacts.in_dir(outdir)
     df_hash = _df_hash_for_semantic(df)
-
+    log.info("DataFrame hash for semantic features: %s", df_hash)
     if not force_recompute and arts.emb_path.exists() and arts.manifest_path.exists():
+        log.info("Checking cache for semantic embeddings in %s", outdir)
         try:
             with open(arts.manifest_path, "r", encoding="utf-8") as f:
                 man = json.load(f)
@@ -155,7 +160,8 @@ def fit_semantic(
 
     texts = build_semantic_corpus(df)
     non_en_ratio = float(np.mean(df["desc_suspected_non_english"].astype(bool))) if len(df) else 0.0
-
+    log.info("Non-English ratio in descriptions: %.1f%%", 100 * non_en_ratio)
+    log.info("Total texts to embed: %d", len(texts))
     emb = embed_bge_m3(
         texts,
         model_name=model_name,
@@ -164,7 +170,8 @@ def fit_semantic(
         normalize=normalize,
         encoder_factory=encoder_factory,
     )
-
+    log.info("Embedding complete: shape=%s", emb.shape)
+    log.info("Saving semantic embeddings to %s", arts.emb_path)
     np.save(arts.emb_path, emb.astype(np.float32))
     arts.save_manifest(
         book_ids=df["book_id"].tolist(),
@@ -182,8 +189,8 @@ def fit_semantic(
 def transform_semantic(
     texts: Sequence[str],
     *,
-    model_name: str = "BAAI/bge-m3",
-    batch_size: int = 64,
+    model_name: str = "BAAI/bge-small-en-v1.5",
+    batch_size: int = 32,
     device: str | None = None,
     normalize: bool = True,
     encoder_factory: Callable[[str, str | None], object] = _get_encoder,

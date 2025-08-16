@@ -278,7 +278,8 @@ def fit_numeric_scalers(df: pd.DataFrame, *, artifacts_dir: Path | str = _METADA
     author_count = df["author_list"].map(_safe_author_count)
 
     desc_len_median = float(desc_len_words.median())
-    author_count_median = float(author_count.median())
+    #author_count_median = float(author_count.median())
+    author_single_flag = (author_count == 1).fillna(False).astype(np.float32).values
 
     rating = pd.to_numeric(df["average_rating"], errors="coerce")
     r_min = float(rating.min(skipna=True)) if rating.notna().any() else 0.0
@@ -297,7 +298,7 @@ def fit_numeric_scalers(df: pd.DataFrame, *, artifacts_dir: Path | str = _METADA
     cfg = {
         "medians": {
             "desc_len_words": desc_len_median,
-            "author_count": author_count_median,
+            #"author_count": author_count_median,
         },
         "rating_minmax": {"min": r_min, "max": r_max},
         "year_bounds": {"min": y_min, "max": y_max, "clip_max": 2026},
@@ -305,7 +306,7 @@ def fit_numeric_scalers(df: pd.DataFrame, *, artifacts_dir: Path | str = _METADA
             "desc_len_log1p",
             "desc_len_ge_median",
             "author_count_int",
-            "author_count_ge_median",
+            "author_single_flag",
             "average_rating_minmax",
             "year_norm",
             "modern_flag",
@@ -317,9 +318,9 @@ def fit_numeric_scalers(df: pd.DataFrame, *, artifacts_dir: Path | str = _METADA
     arts = NumericArtifacts.in_dir(Path(artifacts_dir))
     arts.save(cfg=cfg, book_ids=df["book_id"].tolist(), df_hash=df_hash)
     log.info(
-        "Saved numeric scalers to %s | medians(desc_len=%.1f, author_count=%.1f) | "
+        "Saved numeric scalers to %s | medians(desc_len=%.1f)  | "
         "rating[min=%.2f, max=%.2f] | year[min=%.0f, max=%.0f]",
-        arts.out_dir, desc_len_median, author_count_median, r_min, r_max, y_min, y_max)
+        arts.out_dir, desc_len_median, r_min, r_max, y_min, y_max)
     return cfg
 
 
@@ -339,7 +340,7 @@ def transform_numerics(df: pd.DataFrame, cfg: dict) -> np.ndarray:
     desc_len_ge_med = (desc_len_words.values >= med["desc_len_words"]).astype(np.float32)
 
     author_count_int = author_count.values
-    author_count_ge_med = (author_count.values >= med["author_count"]).astype(np.float32)
+    author_single_flag = (author_count == 1).fillna(False).astype(np.float32).values
 
     rating = pd.to_numeric(df["average_rating"], errors="coerce").astype(float)
     if rmax > rmin:
@@ -362,7 +363,7 @@ def transform_numerics(df: pd.DataFrame, cfg: dict) -> np.ndarray:
         desc_len_log1p.astype(np.float32),
         desc_len_ge_med,
         author_count_int.astype(np.float32),
-        author_count_ge_med,
+        author_single_flag.astype(np.float32),
         rating_minmax.astype(np.float32),
         year_norm.astype(np.float32),
         modern_flag.astype(np.float32),

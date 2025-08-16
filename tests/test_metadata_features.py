@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from scipy import sparse
 
-from src.features.metadata import (
+from src.features_representation.metadata import (
     fit_authors,
     transform_authors,
     fit_numeric_scalers,

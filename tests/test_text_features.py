@@ -3,8 +3,8 @@ import pandas as pd
 from scipy import sparse
 import pytest
 
-from src.features.lexical import build_tfidf_corpus, fit_tfidf, transform_tfidf
-from src.features.semantic import build_semantic_corpus, fit_semantic, transform_semantic
+from src.features_representation.lexical import build_tfidf_corpus, fit_tfidf, transform_tfidf
+from src.features_representation.semantic import build_semantic_corpus, fit_semantic, transform_semantic
 
 def test_lexical_corpus_cleaning_and_blanking():
     df = pd.DataFrame({

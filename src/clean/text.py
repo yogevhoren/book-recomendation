@@ -67,19 +67,6 @@ def flag_suspected_non_english(
     score = w_stopword * stopword_score + w_non_ascii * ascii_score
     flag = score >= combined_threshold
 
-    if flag:
-        snippet = (text[:40] + "...") if isinstance(text, str) and len(text) > 40 else text
-        log.info(f"Flagged as non-English: {flag}")
-        log.info(
-            f"Non-English flagging for snippet={repr(snippet)} | "
-            f"stopword_share_strict={stopword_share_strict:.3f}, "
-            f"non_ascii_ratio={non_ascii_ratio:.3f}, tokens={len(tokens)}"
-        )
-        log.info(f"stop word score={(1 - stopword_share_strict) / (1 - stopword_floor):.3f}")
-        log.info(f"non ascii score={non_ascii_ratio / non_ascii_ratio_threshold:.3f}")
-        log.info(f"Combined score={score:.3f} (threshold={combined_threshold})")
-
-
     return flag, {
         "stopword_share_strict": stopword_share_strict,
         "non_ascii_ratio": non_ascii_ratio,

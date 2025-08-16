@@ -11,6 +11,7 @@ import pandas as pd
 import requests
 import torch
 import torch.nn.functional as F
+from torchvision import transforms
 from PIL import Image, ImageOps
 from tqdm import tqdm
 import timm
@@ -32,7 +33,6 @@ except Exception:
     _MEAN = (0.485, 0.456, 0.406)
     _STD = (0.229, 0.224, 0.225)
 
-
 def _safe_md5(s: str) -> str:
     return hashlib.md5(s.encode("utf-8")).hexdigest()
 
@@ -49,8 +49,10 @@ def _df_hash_for_images(df: pd.DataFrame) -> str:
 def is_placeholder_url(url: str) -> bool:
     if not isinstance(url, str):
         return True
+    if url == "":
+        return True
     u = url.strip().lower()
-    return ("s.gr-assets.com/assets/nophoto" in u)
+    return ("nophoto" in u)
 
 def _letterbox_square(im: Image.Image, target_size: Tuple[int, int]) -> Image.Image:
     if im.mode != "RGB":
@@ -60,14 +62,19 @@ def _letterbox_square(im: Image.Image, target_size: Tuple[int, int]) -> Image.Im
     pad_w = (side - w) // 2
     pad_h = (side - h) // 2
     im_sq = ImageOps.expand(im, border=(pad_w, pad_h, side - w - pad_w, side - h - pad_h), fill=0)
-    return im_sq.resize(target_size, Image.BICUBIC)
+    img_tf = transforms.Compose([
+        transforms.Resize(target_size),   # Resize to (518, 518)
+        transforms.ToTensor(),           # Convert to float tensor in [0,1]
+        transforms.Normalize(mean=_MEAN, std=_STD),  # Normalize
+    ])
+    return img_tf(im_sq)
 
-def _to_tensor_normalized(im: Image.Image) -> torch.Tensor:
-    arr = np.asarray(im).astype(np.float32) / 255.0  
-    t = torch.from_numpy(arr).permute(2, 0, 1)       
-    mean = torch.tensor(_MEAN, dtype=torch.float32).view(3, 1, 1)
-    std = torch.tensor(_STD, dtype=torch.float32).view(3, 1, 1)
-    return (t - mean) / std
+# def _to_tensor_normalized(im: Image.Image) -> torch.Tensor:
+#     arr = np.asarray(im).astype(np.float32) / 255.0  
+#     t = torch.from_numpy(arr).permute(2, 0, 1)       
+#     mean = torch.tensor(_MEAN, dtype=torch.float32).view(3, 1, 1)
+#     std = torch.tensor(_STD, dtype=torch.float32).view(3, 1, 1)
+#     return (t - mean) / std
 
 def _l2_normalize_rows(x: np.ndarray, eps: float = 1e-12) -> np.ndarray:
     norms = np.linalg.norm(x, axis=1, keepdims=True)
@@ -126,30 +133,16 @@ def _get_dinov2(model_name: str = "vit_small_patch14_dinov2", device: Optional[s
     if timm is None:
         raise ImportError("timm is required for DINOv2 image embeddings (pip install timm).")
     dev = torch.device(device or ("cuda" if torch.cuda.is_available() else "cpu"))
-    model = timm.create_model(model_name, pretrained=True)
-    model.eval().to(dev)
+    model = timm.create_model(model_name, pretrained=True, num_classes=0, global_pool="token")
+    model = model.eval().to(dev)
 
     @torch.no_grad()
     def encode_batch(batch: torch.Tensor) -> torch.Tensor:
-        feats = model.forward_features(batch.to(dev))
-        if isinstance(feats, dict):
-            if "x_norm_clstoken" in feats:
-                z = feats["x_norm_clstoken"]  
-            elif "mean" in feats:
-                z = feats["mean"]            
-            else:
-                t = feats.get("tokens", None)
-                if t is None:
-                    raise RuntimeError("Unexpected DINOv2 features; cannot find a global embedding.")
-                z = t.mean(dim=1)
-        else:
-            if feats.ndim == 4:
-                z = F.adaptive_avg_pool2d(feats, 1).squeeze(-1).squeeze(-1)
-            elif feats.ndim == 2:
-                z = feats
-            else:
-                raise RuntimeError("Unsupported feature shape from DINOv2 backbone.")
-        return z  
+        if batch.shape[1:] != (3, 518, 518):
+            raise ValueError(f"Input dimensions are incorrect: {batch.shape[1:]}. Expected (3, 518, 518).")
+        z = model(batch.to(dev))
+        return F.normalize(z, dim=1)
+
 
     class _Encoder:
         def __init__(self, enc): self._enc = enc
@@ -198,11 +191,11 @@ def _load_and_preprocess(path: str, target_size: Tuple[int, int]) -> Optional[to
         return None
     try:
         im = Image.open(path).convert("RGB")
-    except Exception:
+    except Exception as e:
+        log.warning(f"Failed to load image {path}: {e}")
         return None
-    im = _letterbox_square(im, target_size)
-    t = _to_tensor_normalized(im) 
-    return t
+    im_tf = _letterbox_square(im, target_size)
+    return im_tf
 
 def fit_image_embeddings(
     df: pd.DataFrame,
@@ -217,15 +210,18 @@ def fit_image_embeddings(
     model_name: str = "vit_small_patch14_dinov2",
 ) -> Tuple[np.ndarray, np.ndarray]:
     need = ["book_id", "image_url"]
+    log.info("Fitting image embeddings with run_tag=%s", run_tag)
     for c in need:
         if c not in df.columns:
             raise ValueError(f"fit_image_embeddings missing column: {c}")
-
     arts = ImageArtifacts.in_dir(Path(artifacts_root), run_tag)
+    log.info("Image artifacts directory: %s", arts.out_dir)
     df_hash = _df_hash_for_images(df)
+    log.info("DataFrame hash for image features: %s", df_hash)
 
     if not force_recompute and arts.emb_path.exists() and arts.mask_path.exists() and arts.manifest_path.exists():
         try:
+            log.debug("Checking cache for image embeddings in %s", arts.out_dir)
             with open(arts.manifest_path, "r", encoding="utf-8") as f:
                 man = json.load(f)
             if man.get("df_hash") == df_hash and man.get("model_name") == model_name \
@@ -238,51 +234,113 @@ def fit_image_embeddings(
         except Exception as e:
             log.warning("Image manifest present but load failed (%s). Recomputing.", e)
 
+    log.info("Downloading covers to %s", covers_cache_dir)
+    # paths, has_mask, skipped_placeholders = download_covers(df, covers_cache_dir, timeout=10)
+    # log.info(f"Mask after download_covers: {has_mask}")
+    # valid_paths = [p for p, mask in zip(paths, has_mask) if mask]
+    # valid_df = df[has_mask.astype(bool)]
+    # n = len(paths)
+    # log.info("Downloaded covers: %d | Skipped placeholders: %d", n, skipped_placeholders)
+    # enc = encoder_factory(model_name, device)
+    # dev = enc.device if hasattr(enc, "device") else (device or ("cuda" if torch.cuda.is_available() else "cpu"))
+    # log.info("Using device for image encoding: %s", dev)
+    # feats: List[np.ndarray] = []
+    # bs = int(batch_size)
+    # valid = 0
+    # for i in tqdm(range(0, len(valid_paths), bs), desc="encode covers", leave=False):
+    #     batch_paths = valid_paths[i:i+bs]
+    #     imgs = []
+    #     keep_idx = [] 
+    #     for j, p in enumerate(batch_paths):
+    #         t = _load_and_preprocess(p, _TARGET_SIZE)
+            
+    #         if t is None:
+    #             continue
+    #         imgs.append(t)
+    #         keep_idx.append(j)
+    #     if len(imgs) == 0:
+    #         feats.append(np.zeros((len(batch_paths), 1), dtype=np.float32))
+    #         continue
+    #     batch = torch.stack(imgs, dim=0)  
+    #     with torch.no_grad():
+    #         z = enc.encode(batch).detach().cpu().numpy().astype(np.float32)
+    #         # if z is None:
+    #         #     log.warning("Skipping batch due to unsupported feature shape.")
+    #         #     feats.append(np.zeros((len(batch_paths), 1), dtype=np.float32))
+    #         #     continue
+    #     B = len(batch_paths)
+    #     D = z.shape[1]
+    #     chunk = np.zeros((B, D), dtype=np.float32)
+    #     for k, jj in enumerate(keep_idx):
+    #         chunk[jj] = z[k]
+    #     feats.append(chunk)
+    #     valid += len(keep_idx)
+    # log.info("Encoded %d valid images out of %d total", valid, n)
+    # emb = np.concatenate(feats, axis=0) if feats else np.zeros((n, 1), dtype=np.float32)
+    # row_norms = np.linalg.norm(emb, axis=1, keepdims=True)
+    # nz = row_norms.squeeze(-1) > 0
+    # emb[nz] = (emb[nz] / row_norms[nz])
     paths, has_mask, skipped_placeholders = download_covers(df, covers_cache_dir, timeout=10)
+    log.info("Downloaded covers: %d | Skipped placeholders: %d", len(paths), skipped_placeholders)
+
+    valid_idx = np.flatnonzero(has_mask.astype(bool))
+    valid_paths = [paths[i] for i in valid_idx]
     n = len(paths)
 
     enc = encoder_factory(model_name, device)
     dev = enc.device if hasattr(enc, "device") else (device or ("cuda" if torch.cuda.is_available() else "cpu"))
+    log.info("Using device for image encoding: %s", dev)
 
-    feats: List[np.ndarray] = []
     bs = int(batch_size)
+    emb = None
     valid = 0
-    for i in tqdm(range(0, n, bs), desc="encode covers", leave=False):
-        batch_paths = paths[i:i+bs]
+
+    for start in tqdm(range(0, len(valid_paths), bs), desc="encode covers", leave=False):
+        batch_paths = valid_paths[start:start+bs]
         imgs = []
-        keep_idx = [] 
+        keep_local = []
         for j, p in enumerate(batch_paths):
             t = _load_and_preprocess(p, _TARGET_SIZE)
             if t is None:
                 continue
             imgs.append(t)
-            keep_idx.append(j)
-        if len(imgs) == 0:
-            feats.append(np.zeros((len(batch_paths), 1), dtype=np.float32))
+            keep_local.append(j)
+        if not imgs:
             continue
-        batch = torch.stack(imgs, dim=0)  
-        with torch.no_grad():
-            z = enc.encode(batch)  
-        z = z.detach().cpu().numpy().astype(np.float32)
 
-        B = len(batch_paths)
-        D = z.shape[1]
-        chunk = np.zeros((B, D), dtype=np.float32)
-        for k, jj in enumerate(keep_idx):
-            chunk[jj] = z[k]
-        feats.append(chunk)
-        valid += len(keep_idx)
+        batch = torch.stack(imgs, dim=0)
+        z = enc.encode(batch).detach().cpu().numpy().astype(np.float32)  # [B_keep, D]
 
-    emb = np.concatenate(feats, axis=0) if feats else np.zeros((n, 1), dtype=np.float32)
+        if emb is None:
+            D = z.shape[1]
+            emb = np.zeros((n, D), dtype=np.float32)
+
+        global_batch_idx = valid_idx[start:start+bs]
+        global_keep_idx = [int(global_batch_idx[j]) for j in keep_local]
+
+        for k, g in enumerate(global_keep_idx):
+            emb[g] = z[k]
+        valid += len(global_keep_idx)
+
+    log.info("Encoded %d valid images out of %d total", valid, n)
+
+    if emb is None:
+        emb = np.zeros((n, 1), dtype=np.float32)
+
     row_norms = np.linalg.norm(emb, axis=1, keepdims=True)
-    nz = row_norms.squeeze(-1) > 0
-    emb[nz] = (emb[nz] / row_norms[nz])
+    nz = (row_norms.squeeze(-1) > 0)
+    emb[nz] = emb[nz] / row_norms[nz]
 
+    log.info("Image embeddings shape: %s", emb.shape)
+    log.info("Image embeddings dtype: %s", emb.dtype)
     np.save(arts.emb_path, emb.astype(np.float32))
     np.save(arts.mask_path, has_mask.astype(bool))
+    log.info("Saved image embeddings to %s and mask to %s", arts.emb_path, arts.mask_path)
     pct_missing = float(1.0 - has_mask.mean())
+    valid_idx = np.flatnonzero(has_mask.astype(bool))
+    book_ids = df.iloc[valid_idx]["book_id"].tolist()
     arts.save_manifest(
-        book_ids=df["book_id"].tolist(),
+        book_ids=book_ids,
         df_hash=df_hash,
         model_name=model_name,
         device=str(dev),
