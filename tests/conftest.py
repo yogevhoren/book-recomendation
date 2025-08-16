@@ -53,4 +53,3 @@ def artifacts_dir(tmp_path):
     d = tmp_path / "artifacts"
     d.mkdir(parents=True, exist_ok=True)
     return d
-

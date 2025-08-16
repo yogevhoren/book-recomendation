@@ -66,7 +66,6 @@ def flag_suspected_non_english(
     ascii_score = (non_ascii_ratio / non_ascii_ratio_threshold)
     score = w_stopword * stopword_score + w_non_ascii * ascii_score
     flag = score >= combined_threshold
-
     return flag, {
         "stopword_share_strict": stopword_share_strict,
         "non_ascii_ratio": non_ascii_ratio,
