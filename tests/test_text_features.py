@@ -61,6 +61,7 @@ def test_lexical_fit_and_transform_roundtrip(tmp_path):
     X_tr = transform_tfidf(vec, corpus)
     assert sparse.isspmatrix_csr(X_fit) and sparse.isspmatrix_csr(X_tr)
     assert X_fit.shape == X_tr.shape
+
     assert (X_fit != X_tr).nnz == 0
 
 def test_semantic_corpus_preserves_punct_and_case():
@@ -75,6 +76,7 @@ def test_semantic_corpus_preserves_punct_and_case():
     assert "Philosopher's Stone" in texts[0]
     assert "—" in texts[0]  
     assert texts[0].splitlines()[1] != "" 
+
 
 
 class _MockEncoder:

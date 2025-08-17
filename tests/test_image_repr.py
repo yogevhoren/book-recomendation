@@ -100,7 +100,6 @@ def test_download_skips_placeholders_and_handles_errors(tmp_path, mock_requests_
     assert skipped == 1
     assert sum(1 for p in paths if p and Path(p).exists()) == 2
 
-
 # def test_fit_image_embeddings_row_alignment_and_mask(tmp_path, mock_requests_ok):
 #     df = pd.DataFrame({
 #         "book_id": [101, 102, 103],
@@ -125,7 +124,6 @@ def test_download_skips_placeholders_and_handles_errors(tmp_path, mock_requests_
 #     assert norms[1] == pytest.approx(1.0, rel=1e-5)
 #     covers_dir = tmp_path / "image" / "covers"
 #     assert any(covers_dir.iterdir()), "Downloaded covers not found on disk"
-
 
 def test_fit_image_embeddings_cache_hit(tmp_path, mock_requests_ok):
     df = pd.DataFrame({

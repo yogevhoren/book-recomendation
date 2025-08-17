@@ -93,6 +93,7 @@ def _mock_image(monkeypatch, dim=4, coverage=1.0):
 #     assert reps.X_auth is not None
 #     assert reps.X_num is not None
 
+
 def test_numeric_names_and_shapes(toy_df, artifacts_dir, monkeypatch):
     _mock_semantic(monkeypatch, dim=4)
     reps = fit_or_load_all(
