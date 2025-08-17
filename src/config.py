@@ -6,6 +6,7 @@ import torch
 
 
 SEED = 42
+GOOGLE_BOOKS_API_KEY = "AIzaSyCKSMP8QQ0AWegu-ufWMqtIDAIxGwUePtQ"
 
 def set_seed(seed: int = SEED) -> None:
     random.seed(seed)
