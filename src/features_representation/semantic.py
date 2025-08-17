@@ -92,7 +92,7 @@ def _get_encoder(model_name: str, device: str | None):
     return model
 
 
-def embed_bge_m3(
+def embed_bge(
     texts: Sequence[str],
     *,
     model_name: str = "BAAI/bge-small-en-v1.5",
@@ -123,7 +123,7 @@ def embed_bge_m3(
 def fit_semantic(
     df: pd.DataFrame,
     *,
-    run_tag: str = "BAAI/bge-small-en-v1.5",
+    run_tag: str = "bge-small-en-v1.5",
     artifacts_root: str | Path = "artifacts/semantic",
     force_recompute: bool = False,
     model_name: str = "BAAI/bge-small-en-v1.5",
@@ -162,7 +162,7 @@ def fit_semantic(
     non_en_ratio = float(np.mean(df["desc_suspected_non_english"].astype(bool))) if len(df) else 0.0
     log.info("Non-English ratio in descriptions: %.1f%%", 100 * non_en_ratio)
     log.info("Total texts to embed: %d", len(texts))
-    emb = embed_bge_m3(
+    emb = embed_bge(
         texts,
         model_name=model_name,
         batch_size=batch_size,
@@ -185,7 +185,6 @@ def fit_semantic(
     log.info("Semantic [%s] fit complete: shape=%s | saved to %s", run_tag, emb.shape, outdir)
     return emb
 
-
 def transform_semantic(
     texts: Sequence[str],
     *,
@@ -196,7 +195,7 @@ def transform_semantic(
     encoder_factory: Callable[[str, str | None], object] = _get_encoder,
 ) -> np.ndarray:
     
-    return embed_bge_m3(
+    return embed_bge(
         texts,
         model_name=model_name,
         batch_size=batch_size,

@@ -69,7 +69,7 @@ def fit_or_load_all(
     artifacts_root: Path,
     *,
     run_tag_tfidf: str = "eda2",
-    run_tag_sem: str = "BAAI/bge-small-en-v1.5",
+    run_tag_sem: str = "bge-small-en-v1.5",
     run_tag_img: str = "dinov2_vits14",
     enable_tfidf: bool = True,
     enable_semantic: bool = True,

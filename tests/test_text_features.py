@@ -61,13 +61,7 @@ def test_lexical_fit_and_transform_roundtrip(tmp_path):
     X_tr = transform_tfidf(vec, corpus)
     assert sparse.isspmatrix_csr(X_fit) and sparse.isspmatrix_csr(X_tr)
     assert X_fit.shape == X_tr.shape
-    # same vectorizer + same corpus => identical matrix
     assert (X_fit != X_tr).nnz == 0
-
-
-# --------------------------------
-# SEMANTIC (BGE‑M3) — Mandatory
-# --------------------------------
 
 def test_semantic_corpus_preserves_punct_and_case():
     df = pd.DataFrame({
@@ -79,8 +73,8 @@ def test_semantic_corpus_preserves_punct_and_case():
     texts = build_semantic_corpus(df)
     assert len(texts) == 1
     assert "Philosopher's Stone" in texts[0]
-    assert "—" in texts[0]  # dash preserved
-    assert texts[0].splitlines()[1] != ""  # description present
+    assert "—" in texts[0]  
+    assert texts[0].splitlines()[1] != "" 
 
 
 class _MockEncoder:
@@ -107,15 +101,13 @@ def test_semantic_fit_cache_hit_with_mock(tmp_path, monkeypatch):
         "desc_suspected_non_english": [False, False],
     })
 
-    # Capture a single shared mock to count calls
     shared = _MockEncoder()
-    def factory(_, __):  # ignore args
+    def factory(_, __):  
         return shared
 
-    # 1) fit
     emb1 = fit_semantic(
         df,
-        run_tag="bge_m3_unit",
+        run_tag="bge-small-en-v1.5",
         artifacts_root=tmp_path / "semantic",
         encoder_factory=factory,
         normalize=True,
@@ -123,10 +115,9 @@ def test_semantic_fit_cache_hit_with_mock(tmp_path, monkeypatch):
         model_name="mock",
         device="cpu",
     )
-    # 2) fit again (should use cache)
     emb2 = fit_semantic(
         df,
-        run_tag="bge_m3_unit",
+        run_tag="bge-small-en-v1.5",
         artifacts_root=tmp_path / "semantic",
         encoder_factory=factory,
         normalize=True,
@@ -136,7 +127,6 @@ def test_semantic_fit_cache_hit_with_mock(tmp_path, monkeypatch):
     )
 
     assert emb1.shape == emb2.shape == (2, 4)
-    # Only one encode() call should have happened across both runs
     assert shared.calls == 1, "Second call should have hit cache and skipped encoding"
 
 
@@ -161,13 +151,10 @@ def test_lexical_cache_manifest_respects_config(tmp_path):
         "desc_suspected_non_english": [False, False],
     })
     corpus, _ = build_tfidf_corpus(df)
-
-    # (1,1)
     vec1, X1 = fit_tfidf(
         corpus, run_tag="unit_cfg", df=df, ngram_range=(1, 1), min_df=1, max_df=1.0,
         artifacts_root=tmp_path / "tfidf",
     )
-    # (1,2) same run_tag but different config → should refit (manifest mismatch)
     vec2, X2 = fit_tfidf(
         corpus, run_tag="unit_cfg", df=df, ngram_range=(1, 2), min_df=1, max_df=1.0,
         artifacts_root=tmp_path / "tfidf",

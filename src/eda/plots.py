@@ -31,3 +31,28 @@ def bar_all(df: pd.DataFrame, col: str, sort_desc: bool = True, save_path: str |
     ax.set_xlabel(col)
     ax.set_ylabel("Count")
     save_and_show(fig, save_path)
+
+def plot_2d_embedding(Z: np.ndarray, labels: List[str], method: str = "umap", title: str = "Embedding (2D)"):
+    import matplotlib.pyplot as plt
+    from sklearn.decomposition import PCA
+
+    if method == "umap":
+        try:
+            import umap
+            reducer = umap.UMAP(n_neighbors=20, min_dist=0.1, random_state=42)
+            coords = reducer.fit_transform(Z)
+        except Exception:
+            method = "pca"
+    if method == "pca":
+        coords = PCA(n_components=2, random_state=42).fit_transform(Z)
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    unique = sorted(set(labels))
+    for g in unique:
+        m = [i for i, lab in enumerate(labels) if lab == g]
+        ax.scatter(coords[m, 0], coords[m, 1], s=10, alpha=0.6, label=g)
+    ax.set_title(title)
+    ax.set_xlabel("dim-1")
+    ax.set_ylabel("dim-2")
+    ax.legend(markerscale=2, frameon=False, bbox_to_anchor=(1.05, 1), loc="upper left")
+    return fig, ax

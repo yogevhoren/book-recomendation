@@ -298,7 +298,6 @@ def fit_numeric_scalers(df: pd.DataFrame, *, artifacts_dir: Path | str = _METADA
     cfg = {
         "medians": {
             "desc_len_words": desc_len_median,
-            #"author_count": author_count_median,
         },
         "rating_minmax": {"min": r_min, "max": r_max},
         "year_bounds": {"min": y_min, "max": y_max, "clip_max": 2026},
