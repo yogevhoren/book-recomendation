@@ -23,7 +23,7 @@ Hybrid, unsupervised book recommender: TF‑IDF (bigrams) + semantic embeddings 
 # Overview
 I built an unsupervised book recommender. Given a single seed book, it returns a short ranked list of similar recommended books. The focus is on clean data handling, interpretable features, a transparent hybrid ranking method, and a clear evaluation plan that does not require labels.
 
-Problem Definition 
+**Problem Definition**
 Input: One seed book from a corpus. Each book includes title, description, authors, publication year, average rating, and a cover image URL.
 Output: A top 5 recommendation list that excludes the seed book and avoids near duplicates.
 Representations (feature tracks):
