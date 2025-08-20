@@ -198,7 +198,7 @@ Below are minimal examples. Adjust paths and params to your environment.
     post_year_alpha = 0.02
     mmr_on = False
     rec = serve_final(df_clean, reps, seed_book_id, weights=best_w, year_bias_weight=post_year_alpha, use_mmr=mmr_on, mmr_space=mmr_space)
-```
+
 
 > For production, add MMR re‑rank, author/desc caps, and an optional year bias (+0.05). Utilities for caps and tables exist in `src/recsys/utils.py`.
 
