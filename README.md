@@ -188,91 +188,16 @@ artifacts/
 
 Below are minimal examples. Adjust paths and params to your environment.
 
-### 1) Load data and fit/restore all representations
-
-```python
-from pathlib import Path
-import pandas as pd
-from src.features_representation.pipeline import fit_or_load_all
-from src.ingest import load_books_csv
-from src.config import get_paths, ensure_dirs
-
-paths = get_paths()
-ensure_dirs(paths)
-
-df = load_books_csv(paths["raw_csv"])  # data/raw/book.csv by default
-reps = fit_or_load_all(
-    df,
-    artifacts_root=paths["artifacts"],
-    run_tag_tfidf="eda2",
-    run_tag_sem="bge-small-en-v1.5",  # switch from default
-    run_tag_img="dinov2_vits14",
-    tfidf_params={"title_boost": 2, "ngram_range": (1, 2), "min_df": 5, "max_df": 0.90},
-    semantic_params={"normalize": True},
-    image_params={"batch_size": 32},
-)
-```
-
-This returns a `Reps` object with: `X_tfidf`, `Z_sem`, `X_auth`, `X_num`, `Z_img`, masks, feature names, and a summary manifest.
-
-### 2) Get nearest neighbors from any single track
-
-```python
-from src.recsys.utils import nearest_table
-
-seed_idx = 42  # example row index in df
-table = nearest_table(reps.Z_sem, df, seed_idx, top=10)  # or reps.X_tfidf / reps.X_auth / reps.X_num
-print(table.head())
-```
-
-### 3) Simple fusion (example)
-
-If you don’t have a helper in your repo, you can do a minimal fusion inline:
-
-```python
-import numpy as np
-from sklearn.preprocessing import MinMaxScaler
-
-weights = {"tfidf": 0.30, "sem": 0.41, "auth": 0.10, "num": 0.15, "img": 0.04}
-
-# Build a dict of (name → similarity vector) from the seed to all items
-sims = {}
-# cosine for dense
-def cos_dense(a, B):
-    a = a.reshape(1, -1)
-    return (B @ a.T).ravel()
-
-# choose seed
-i = seed_idx
-if reps.X_tfidf is not None:
-    sims["tfidf"] = (reps.X_tfidf[i] @ reps.X_tfidf.T).toarray().ravel()
-if reps.Z_sem is not None:
-    sims["sem"] = cos_dense(reps.Z_sem[i], reps.Z_sem)
-if reps.X_auth is not None:
-    sims["auth"] = (reps.X_auth[i] @ reps.X_auth.T).toarray().ravel()
-if reps.X_num is not None:
-    sims["num"] = cos_dense(reps.X_num[i], reps.X_num)
-if reps.Z_img is not None:
-    sims["img"] = cos_dense(reps.Z_img[i], reps.Z_img)
-
-# rank‑percentile per track
-scores = {}
-for k, v in sims.items():
-    r = v.argsort().argsort() / (len(v) - 1)
-    scores[k] = r.astype(float)
-
-# weighted sum (renormalize over present tracks)
-avail = list(scores.keys())
-Z = np.zeros(len(df), dtype=float)
-if avail:
-    wsum = sum(weights[k] for k in avail)
-    for k in avail:
-        Z += scores[k] * (weights[k] / wsum)
-
-# remove self and get top‑5
-Z[i] = -1
-ranked = np.argsort(-Z)[:5]
-print(df.iloc[ranked][["book_id", "title", "authors", "original_publication_year", "average_rating"]])
+    df = pd.read_csv("data/raw/book.csv")
+    df_clean = clean_books_dataset(df, drop_language_col=True)
+    reps = fit_or_load_all(df_clean, artifacts_root=ARTIFACTS / "eda2", enable_image=True, run_tag_img="dinov2_vits14")
+    genre_cache = ensure_genre_cache(df_clean, max_updates=100)
+    best_w = eval_and_select_weights(df_clean, reps, genre_cache, use_mmr=True, lam=0.95, mmr_space=mmr_space)
+    seed_idx = 0
+    seed_book_id = int(df_clean.loc[seed_idx, "book_id"])
+    post_year_alpha = 0.02
+    mmr_on = False
+    rec = serve_final(df_clean, reps, seed_book_id, weights=best_w, year_bias_weight=post_year_alpha, use_mmr=mmr_on, mmr_space=mmr_space)
 ```
 
 > For production, add MMR re‑rank, author/desc caps, and an optional year bias (+0.05). Utilities for caps and tables exist in `src/recsys/utils.py`.
