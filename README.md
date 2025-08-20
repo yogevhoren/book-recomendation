@@ -109,23 +109,19 @@ tqdm
 git clone <YOUR_REPO_URL>.git book-recommender
 cd book-recommender
 
-# 2) Create & activate venv (example: Unix)
-python -m venv .venv
-source .venv/bin/activate
-
-# 3) Install deps
+# 2) Install deps
 pip install -U pip
 pip install -r requirements.txt
 
-# 4) Put the dataset
+# 3) Put the dataset
 mkdir -p data/raw
 cp path/to/book.csv data/raw/
 
-# 5) (Optional) Set environment
+# 4) (Optional) Set environment
 # export PROJECT_ROOT=$(pwd)
 # export BOOKS_CSV=$(pwd)/data/raw/book.csv
 
-# 6) Run the notebooks in order
+# 5) Run the notebooks in order
 # notebooks/10_eda1.ipynb → 20_eda2.ipynb → 30_fusion_tuning.ipynb → 40_results_and_recs.ipynb
 ```
 
